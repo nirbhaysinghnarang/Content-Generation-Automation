@@ -1,4 +1,5 @@
-#About the Project
+**About the Project**
+
 
 This project is intended to generate short content (videos) via chatgpt prompting and using python. These short media contents can be shared to mass audicienes via instagram or whatsapp and it is intended to educate people about various topics like Hinduism and Indian culture, etc.
 
