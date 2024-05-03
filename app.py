@@ -109,7 +109,7 @@ def generate_video():
 
     print('bearer_token ',bearer_token)
     print('story ',story)
-     print('prompt ',prompt)
+    print('prompt ',prompt)
 
     # Check for missing prompt or story
     if not prompt or not story:
