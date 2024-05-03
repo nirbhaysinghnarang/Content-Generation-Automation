@@ -96,6 +96,8 @@ def create_slideshow(images, story, duration=3):
 def generate_video():
     # Get bearer token from headers
     bearer_token = request.headers.get('Authorization')
+
+    
     
     if not bearer_token:
         return jsonify({"error": "Authorization token is missing"}), 401
@@ -104,6 +106,10 @@ def generate_video():
     data = request.json
     prompt = data.get('prompt', "")
     story = data.get('story', "")
+
+    print('bearer_token ',bearer_token)
+    print('story ',story)
+     print('prompt ',prompt)
 
     # Check for missing prompt or story
     if not prompt or not story:
