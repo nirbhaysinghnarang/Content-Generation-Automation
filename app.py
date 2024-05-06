@@ -4,6 +4,7 @@ from PIL import Image
 from moviepy.editor import ImageClip, concatenate_videoclips, TextClip, CompositeVideoClip, ImageSequenceClip, AudioFileClip
 import io
 import numpy as np
+import os
 import cv2
 from PIL import Image, ImageFont, ImageDraw
 
