@@ -116,7 +116,7 @@ def generate_video():
     if not prompt or not story:
         return jsonify({"error": "Both prompt and story must be provided"}), 400
 
-    video_path = "/story_with_subtitles_with_music.mp4"
+    video_path = ""
 
     try:
         # Generate video based on the bearer token, prompt, and story
