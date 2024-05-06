@@ -117,14 +117,14 @@ def generate_video():
         return jsonify({"error": "Both prompt and story must be provided"}), 400
 
 
-    try:
-        # Generate video based on the bearer token, prompt, and story
-        generate_short_content(bearer_token, prompt, story)
+    
+    # Generate video based on the bearer token, prompt, and story
+    generate_short_content(bearer_token, prompt, story)
 
-        # Check if the video file has been created and exists
-        
-        print('video exists')
-        return send_file(video_path, as_attachment=True, attachment_filename=video_path)
+    # Check if the video file has been created and exists
+    
+    print('video exists')
+    return send_file(video_path, as_attachment=True, attachment_filename=video_path)
         
 
 @app.route('/')
