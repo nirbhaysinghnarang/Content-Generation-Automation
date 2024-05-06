@@ -11,7 +11,7 @@ from PIL import Image, ImageFont, ImageDraw
 app = Flask(__name__)
 
 # Main function to generate a short content video
-def generate_short_content(bearer_token, prompt, story, video_path):
+def generate_short_content(bearer_token, prompt, story):
     # Generate images based on the prompt
     images = generate_images(bearer_token, prompt, num_images=3)
 
@@ -116,19 +116,16 @@ def generate_video():
     if not prompt or not story:
         return jsonify({"error": "Both prompt and story must be provided"}), 400
 
-    video_path = ""
 
     try:
         # Generate video based on the bearer token, prompt, and story
-        generate_short_content(bearer_token, prompt, story, video_path)
+        generate_short_content(bearer_token, prompt, story)
 
         # Check if the video file has been created and exists
-        if os.path.exists(video_path):
-            return send_file(video_path, as_attachment=True, attachment_filename=video_path)
-        else:
-            return jsonify({"error": "Failed to generate video"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        
+        print('video exists')
+        return send_file(video_path, as_attachment=True, attachment_filename=video_path)
+        
 
 @app.route('/')
 def home():
