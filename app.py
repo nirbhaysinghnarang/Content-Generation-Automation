@@ -118,14 +118,16 @@ def generate_video():
     video_path = "/story_with_subtitles_with_music.mp4"
 
     try:
-        # Assuming generate_short_content uses bearer_token, prompt, story, and video_path
-        status = generate_short_content(bearer_token, prompt, story, video_path)
-        if status:
-            return send_file(video_path, attachment_filename='video.mp4')
+        # Generate video based on the bearer token, prompt, and story
+        generate_short_content(bearer_token, prompt, story, video_path)
+
+        # Check if the video file has been created and exists
+        if os.path.exists(video_path):
+            return send_file(video_path, as_attachment=True, attachment_filename=video_path)
         else:
             return jsonify({"error": "Failed to generate video"}), 500
     except Exception as e:
-        return str(e), 500
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/')
 def home():
