@@ -47,17 +47,17 @@ def put_text_on_image(img, text, font_scale=1, font_thickness=2, text_color=(0, 
     img_pil = Image.fromarray(img)
     draw = ImageDraw.Draw(img_pil)
 
-    # Use a Unicode compatible font, ensure it's bold if needed
-    font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"  # Adjusted path for bold font
-    font = ImageFont.truetype(font_path, int(32 * font_scale))  # Adjust font size as needed
+    # # Use a Unicode compatible font, ensure it's bold if needed
+    # font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"  # Adjusted path for bold font
+    # font = ImageFont.truetype(font_path, int(32 * font_scale))  # Adjust font size as needed
 
-    # Calculate the text size to position it at the center
-    text_size = draw.textsize(text, font=font)
-    text_x = (img_pil.width - text_size[0]) / 2  # Center the text horizontally
-    text_y = img_pil.height - text_size[1] - 10  # Position the text at the bottom, with a small margin
+    # # Calculate the text size to position it at the center
+    # text_size = draw.textsize(text, font=font)
+    # text_x = (img_pil.width - text_size[0]) / 2  # Center the text horizontally
+    # text_y = img_pil.height - text_size[1] - 10  # Position the text at the bottom, with a small margin
 
-    # Apply the text onto the image
-    draw.text((text_x, text_y), text, font=font, fill=text_color)
+    # # Apply the text onto the image
+    # draw.text((text_x, text_y), text, font=font, fill=text_color)
 
     # Convert back to numpy array
     return np.array(img_pil)
