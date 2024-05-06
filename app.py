@@ -124,7 +124,7 @@ def generate_video():
     # Check if the video file has been created and exists
     
     print('video exists')
-    return send_file(video_path, as_attachment=True, attachment_filename=video_path)
+    return send_file('story_with_subtitles_with_music.mp4', as_attachment=True, attachment_filename='story_with_subtitles_with_music.mp4')
         
 
 @app.route('/')
