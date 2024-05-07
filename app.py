@@ -28,37 +28,43 @@ def generate_images(bearer_token, prompt, num_images=3):
     }
     payload = {
         "prompt": prompt,
-        "n": num_images,
-        "size": "1024x1024"
+        "n": 1,
+        "size": "1024x1024",
+        "model": "dall-e-3"
     }
 
-    response = requests.post('https://api.openai.com/v1/images/generations', headers=headers, json=payload)
-    if response.status_code == 200:
-        data = response.json()
-        for img_data in data['data']:
-            img_bytes = requests.get(img_data['url']).content
-            img = Image.open(io.BytesIO(img_bytes))
-            images.append(img)
-    else:
-        print(f"Failed to generate images: {response.text}")
+    for i in range(num_images):
+      response = requests.post('https://api.openai.com/v1/images/generations', headers=headers, json=payload)
+      if response.status_code == 200:
+          data = response.json()
+          for img_data in data['data']:
+              img_bytes = requests.get(img_data['url']).content
+              img = Image.open(io.BytesIO(img_bytes))
+              images.append(img)
+      else:
+          print(f"Failed to generate images: {response.text}")
     return images
+
 
 def put_text_on_image(img, text, font_scale=1, font_thickness=2, text_color=(0, 0, 0)):
     # Convert numpy array to PIL Image
     img_pil = Image.fromarray(img)
     draw = ImageDraw.Draw(img_pil)
 
-    # # Use a Unicode compatible font, ensure it's bold if needed
-    # font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"  # Adjusted path for bold font
-    # font = ImageFont.truetype(font_path, int(32 * font_scale))  # Adjust font size as needed
+    # Use a Unicode compatible font, ensure it's bold if needed
+    font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"  # Adjusted path for bold font
 
-    # # Calculate the text size to position it at the center
-    # text_size = draw.textsize(text, font=font)
-    # text_x = (img_pil.width - text_size[0]) / 2  # Center the text horizontally
-    # text_y = img_pil.height - text_size[1] - 10  # Position the text at the bottom, with a small margin
+    # Load the Noto Sans font
+    #font = fonttools.open("NotoSans-Regular.ttf")
+    font = ImageFont.truetype(font_path, int(32 * font_scale))  # Adjust font size as needed
 
-    # # Apply the text onto the image
-    # draw.text((text_x, text_y), text, font=font, fill=text_color)
+    # Calculate the text size to position it at the center
+    text_size = draw.textsize(text, font=font)
+    text_x = (img_pil.width - text_size[0]) / 2  # Center the text horizontally
+    text_y = img_pil.height - text_size[1] - 10  # Position the text at the bottom, with a small margin
+
+    # Apply the text onto the image
+    draw.text((text_x, text_y), text, font=font, fill=text_color)
 
     # Convert back to numpy array
     return np.array(img_pil)
@@ -81,12 +87,12 @@ def create_slideshow(images, story, duration=3):
     # Create a clip from image sequences
     clip = ImageSequenceClip(clips, fps=1/duration)
 
-    # # Load the background audio
-    # audio = AudioFileClip('/content/017941_unknown-54945.mp3')
+    # Load the background audio
+    audio = AudioFileClip('017941_unknown-54945.mp3')
 
-    # # Set the audio of the video clip. If the audio is longer than the video, it will be trimmed
-    # # If the audio is shorter, it will loop
-    # clip = clip.set_audio(audio.set_duration(clip.duration))
+    # Set the audio of the video clip. If the audio is longer than the video, it will be trimmed
+    # If the audio is shorter, it will loop
+    clip = clip.set_audio(audio.set_duration(clip.duration))
 
     # Write the clip to a file
     clip.write_videofile("story_with_subtitles_with_music.mp4", fps=24, codec='libx264', audio_codec='aac')
@@ -98,8 +104,8 @@ def generate_video():
     # Get bearer token from headers
     bearer_token = request.headers.get('Authorization')
 
-    
-    
+
+
     if not bearer_token:
         return jsonify({"error": "Authorization token is missing"}), 401
 
@@ -117,19 +123,16 @@ def generate_video():
         return jsonify({"error": "Both prompt and story must be provided"}), 400
 
 
-    
+
     # Generate video based on the bearer token, prompt, and story
     generate_short_content(bearer_token, prompt, story)
 
-    # Check if the video file has been created and exists
-    
-    print('video exists')
     return send_file('story_with_subtitles_with_music.mp4', as_attachment=True, attachment_filename='story_with_subtitles_with_music.mp4')
-        
+
 
 @app.route('/')
 def home():
     return "Welcome to the Video Generator API!"
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=6000)
