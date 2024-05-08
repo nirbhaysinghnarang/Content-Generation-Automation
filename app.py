@@ -60,7 +60,7 @@ def put_text_on_image(img, text, font_scale=2, font_thickness=3, text_color=(0, 
     draw = ImageDraw.Draw(img_pil)
 
     # Use a Unicode compatible font
-    font_path = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf"  # Adjusted path for bold font
+    font_path = "./resources/NotoSansDevanagari-Bold.ttf"  # Adjusted path for bold font
     font = ImageFont.truetype(font_path, int(32 * font_scale))  # Adjust font size as needed
 
     # Text wrapping
@@ -101,7 +101,7 @@ def create_slideshow(images, story, filename, duration=3, fadein_duration=1, fad
     clip = ImageSequenceClip(clips, fps=1/duration)
 
     # Load the background audio
-    audio = AudioFileClip('017941_unknown-54945.mp3')
+    audio = AudioFileClip('./resources/background_music.mp3')
 
     audio = audio.audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
 
@@ -121,7 +121,7 @@ def generate_video():
 
     # Generate a unique filename for the video
     unique_id = str(uuid.uuid4())
-    video_filename = f"{unique_id}.mp4"
+    video_filename = f"./output/{unique_id}.mp4"
 
 
 
@@ -156,7 +156,7 @@ def generate_video():
 def get_video(video_id):
     video_path = f"{video_id}.mp4"
     try:
-        return send_file(video_path, as_attachment=True, attachment_filename=video_path)
+        return send_file(video_path, as_attachment=True, download_name=video_path)
     except Exception as e:
         return video_path
 
