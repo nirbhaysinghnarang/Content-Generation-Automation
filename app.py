@@ -115,6 +115,7 @@ def load_images(num_images=1):
     files = [f for f in os.listdir(directory_path) if f.endswith(('.png', '.jpg', '.jpeg', '.webp'))]
     
     # Shuffle the list of files to ensure random order
+    random.seed()
     random.shuffle(files)
     
     # Load the specified number of images without duplicates
@@ -156,7 +157,7 @@ def wrap_text(text, font, max_width):
     return lines
 
 
-def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0), bg_color=(255, 255, 255)):
+def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0), bg_color=(255, 255, 255, 0)):
     # Convert numpy array to PIL Image
     img_pil = Image.fromarray(img)
     draw = ImageDraw.Draw(img_pil)
