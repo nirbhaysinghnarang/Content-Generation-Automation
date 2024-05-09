@@ -5,14 +5,67 @@ from PIL import Image, ImageFont, ImageDraw
 from moviepy.editor import ImageSequenceClip, AudioFileClip, afx
 import numpy as np
 import cv2
-
+import io
+import os
+import random
 
 app = Flask(__name__)
 
-system_prompt = 'You are the Hindu god Krishna. Please respond to the users question with wisdom and compassion with a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, with no quotation marks or other surrounding text'
+system_prompt = 'You are a helpful assistant.'
 
-def generate_short_content(bearer_token, prompt, story, filename):
-    images = generate_images(bearer_token, prompt)
+style_prompt = 'The characters should be drawn from the time of the Hindu epic the Mahabharata. Use a style reminiscent of traditional painting techniques to create an image that is both classic and contemporary, suitable for illustrating religious or mythological narratives. The bottom 1/3 of the image should depict the ground, air or some other unimportant item.'
+
+
+def dalle(bearer_token, prompt, style_prompt=style_prompt):
+    headers = {
+      'Authorization': bearer_token
+    }
+    payload = {
+        "model": "dall-e-3",
+        "prompt": prompt + ' ' + style_prompt,
+        "n": 1,
+        "size": "1024x1024"
+    }
+
+    response = requests.post('https://api.openai.com/v1/images/generations', headers=headers, json=payload)
+    if response.status_code == 200:
+        data = response.json()
+        for img_data in data['data']:
+            img_bytes = requests.get(img_data['url']).content
+            img = Image.open(io.BytesIO(img_bytes))
+            return img
+    else:
+        print(f"Failed to generate images: {response.text}")
+
+
+def chatgpt(bearer_token, prompt, system_prompt=system_prompt):
+    headers = {
+        'Authorization': bearer_token,
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "gpt-4-turbo",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    response = requests.post('https://api.openai.com/v1/chat/completions', headers=headers, json=payload)
+    
+    if response.status_code == 200:
+        data = response.json()
+        return data['choices'][0]['message']['content'].strip()  # Extract and return the text from the response
+    else:
+        print(f"Failed to generate text: {response.text}")
+        return None
+    
+
+def generate_short_content(bearer_token, prompt, story, filename, num_slides, gen_images):
+    if gen_images:
+        images = generate_images(bearer_token, prompt, num_slides)
+    else:
+        images = load_images(num_slides)
     create_slideshow(images, story, filename)
 
 
@@ -50,66 +103,44 @@ def generate_zoom_pan_frames(np_img, num_frames):
     return frames
 
 
-def generate_story(bearer_token, prompt):
-    headers = {
-        'Authorization': bearer_token,
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "gpt-4-turbo",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt}
-        ]
-    }
+def generate_story(bearer_token, prompt, num_slides=1):
+    return chatgpt(bearer_token, prompt, 'You are the Hindu god Krishna. Please respond to the users question with wisdom and compassion with a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, with no quotation marks or other surrounding text')
 
-    response = requests.post('https://api.openai.com/v1/chat/completions', headers=headers, json=payload)
+
+def load_images(num_images=1):
+    # Define the directory path where images are stored
+    directory_path = './resources/'
     
-    if response.status_code == 200:
-        data = response.json()
-        print (data)
-        return data['choices'][0]['message']['content'].strip()  # Extract and return the text from the response
-    else:
-        print(f"Failed to generate text: {response.text}")
-        return None
-
+    # List all files in the directory and filter out non-image files if necessary
+    files = [f for f in os.listdir(directory_path) if f.endswith(('.png', '.jpg', '.jpeg', '.webp'))]
+    
+    # Shuffle the list of files to ensure random order
+    random.shuffle(files)
+    
+    # Load the specified number of images without duplicates
+    images = []
+    for filename in files[:num_images]:
+        # Form the full file path
+        file_path = os.path.join(directory_path, filename)
+        # Open and load the image
+        with open(file_path, 'rb') as file:
+            img = Image.open(file)
+            img.load()  # Load the image data to ensure it's all read
+            images.append(img)
+    
+    return images
+    
 
 # Function to generate images using OpenAI's DALL-E API
-def generate_images(bearer_token, prompt, num_images=1):
+def generate_images(bearer_token, story, num_images=1):
     images = []
-    headers = {
-      'Authorization': bearer_token
-    }
-    payload = {
-        "model": "dall-e-3",
-        "prompt": prompt,
-        "n": 1,
-        "size": "1024x1024"
-    }
-
-    '''
     for i in range(num_images):
-      response = requests.post('https://api.openai.com/v1/images/generations', headers=headers, json=payload)
-      if response.status_code == 200:
-          data = response.json()
-          for img_data in data['data']:
-              img_bytes = requests.get(img_data['url']).content
-              img = Image.open(io.BytesIO(img_bytes))
-              images.append(img)
-      else:
-          print(f"Failed to generate images: {response.text}")
-    '''
-
-    # Open an image file
-    with open('./resources/krishna.webp', 'rb') as file:
-        img = Image.open(file)
-        img.load()  # This might be necessary depending on the image type and PIL version
-        images.append(img)  # Append the image to the list
-
-    with open('./resources/arjuna.webp', 'rb') as file:
-        img = Image.open(file)
-        img.load()  # This might be necessary depending on the image type and PIL version
-        images.append(img)  # Append the image to the list
+        prompt = chatgpt(bearer_token, f"Based on the following prompt, create an image prompt suitable for an image generation tool like dall-e. The prompt should highlight the divine presence of Lord Krisna. Respond with the image prompt itself without any introductory or extraneous text. Prompt: {story}", "You are a helpful assistant that converts the text prompt into an image prompt suitable for an image generation tool like dall-e")
+        print('img prompt ',prompt)
+        img = dalle(bearer_token, prompt)
+        images.append(img)
+        unique_id = str(uuid.uuid4())
+        img.save(f"./output/images/{unique_id}.webp")
 
     return images
 
@@ -208,25 +239,27 @@ def generate_video():
 
     # Generate a unique filename for the video
     unique_id = str(uuid.uuid4())
-    video_filename = f"./output/{unique_id}.mp4"
+    filename = f"./output/videos/{unique_id}.mp4"
 
     # Get JSON data for prompt and story
     data = request.get_json()
     prompt = data.get('prompt', "")
     story = data.get('story', "")
+    num_slides = data.get('num_slides', 1)
+    gen_images = data.get('gen_images', True)
 
     if not prompt:
         return jsonify({"error": "Prompt must be provided"}), 400
 
     if not story: 
-        story = generate_story(bearer_token, prompt)
+        story = generate_story(bearer_token, prompt, num_slides)
 
     # print('bearer_token ',bearer_token)
     print('prompt ',prompt)
     print('story ',story)
 
     # Generate video based on the bearer token, prompt, and story
-    generate_short_content(bearer_token, prompt, story, video_filename)
+    generate_short_content(bearer_token, prompt, story, filename, num_slides, gen_images)
 
     # Check if the video file has been created and exists
 
@@ -237,7 +270,7 @@ def generate_video():
 
 @app.route('/video/<video_id>')
 def get_video(video_id):
-    video_path = f"./output/{video_id}.mp4"
+    video_path = f"./output/videos/{video_id}.mp4"
     try:
         return send_file(video_path, as_attachment=True, download_name=video_path)
     except Exception as e:
