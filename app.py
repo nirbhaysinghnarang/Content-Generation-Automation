@@ -13,7 +13,7 @@ app = Flask(__name__)
 
 system_prompt = 'You are a helpful assistant.'
 
-style_prompt = 'The characters should be drawn from the time of the Hindu epic the Mahabharata. Use a style reminiscent of traditional painting techniques to create an image that is both classic and contemporary, suitable for illustrating religious or mythological narratives. The bottom 1/3 of the image should depict the ground, air or some other unimportant item.'
+style_prompt = 'The characters should be drawn from the time of the Hindu epic the Mahabharata. Use a style reminiscent of traditional painting techniques to create an image that is suitable for illustrating Hindu religious or mythological narratives. The bottom 1/3 of the image should depict the ground, air or some other unimportant item.'
 
 
 def dalle(bearer_token, prompt, style_prompt=style_prompt):
@@ -61,12 +61,17 @@ def chatgpt(bearer_token, prompt, system_prompt=system_prompt):
         return None
     
 
-def generate_short_content(bearer_token, prompt, story, filename, num_slides, gen_images):
+def generate_short_content(bearer_token, prompt, filename, num_slides, gen_images):
+    stories = []
+    for i in range(num_slides):
+        story = generate_story(bearer_token, prompt)
+        print('story ',story)
+        stories.append(story)
     if gen_images:
         images = generate_images(bearer_token, prompt, num_slides)
     else:
         images = load_images(num_slides)
-    create_slideshow(images, story, filename)
+    create_slideshow(images, stories, filename)
 
 
 def generate_zoom_pan_frames(np_img, num_frames):
@@ -103,20 +108,25 @@ def generate_zoom_pan_frames(np_img, num_frames):
     return frames
 
 
-def generate_story(bearer_token, prompt, num_slides=1):
-    return chatgpt(bearer_token, prompt, 'You are the Hindu god Krishna. Please respond to the users question with wisdom and compassion with a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, with no quotation marks or other surrounding text')
+def generate_story(bearer_token, prompt):
+    return chatgpt(bearer_token, prompt, 'You are the Hindu god Krishna. Please respond to the users question with wisdom and compassion with a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, separated by a new line, with no quotation marks or other surrounding text')
 
 
-def load_images(num_images=1):
-    # Define the directory path where images are stored
-    directory_path = './resources/'
-    
+def get_random_files(directory_path):
     # List all files in the directory and filter out non-image files if necessary
-    files = [f for f in os.listdir(directory_path) if f.endswith(('.png', '.jpg', '.jpeg', '.webp'))]
+    files = [f for f in os.listdir(directory_path)]
     
     # Shuffle the list of files to ensure random order
     random.seed()
     random.shuffle(files)
+
+    return files
+
+def load_images(num_images=1):
+    # Define the directory path where images are stored
+    #directory_path = './resources/images'
+    directory_path = './output/images'
+    files = get_random_files(directory_path)
     
     # Load the specified number of images without duplicates
     images = []
@@ -148,12 +158,25 @@ def generate_images(bearer_token, story, num_images=1):
 
 def wrap_text(text, font, max_width):
     lines = []
-    words = text.split()
-    while words:
-        line = ''
-        while words and font.getsize(line + words[0])[0] <= max_width:
-            line += (words.pop(0) + ' ')
-        lines.append(line)
+    # Split the text into lines based on newline characters
+    paragraphs = text.split('\n')
+
+    for paragraph in paragraphs:
+        words = paragraph.split()
+        current_line = ''
+        
+        while words:
+            # Check if adding the next word would exceed the max width
+            if font.getsize(current_line + words[0] + ' ')[0] <= max_width:
+                current_line += words.pop(0) + ' '
+            else:
+                lines.append(current_line.strip())
+                current_line = words.pop(0) + ' '
+
+        # Add any remaining text
+        if current_line:
+            lines.append(current_line.strip())
+    
     return lines
 
 
@@ -193,13 +216,13 @@ def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0), bg_color=(2
     return np.array(img_pil)
 
 
-def create_slideshow(images, story, filename, duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
+def create_slideshow(images, stories, filename, duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
     # Prepare clips list
     clips = []
     total_frames = len(images) * duration * fps  # Total frames for the whole video
     frames_per_image = total_frames // len(images)  # Frames allocated to each image
 
-    for img in images:
+    for img, story in zip(images, stories):
         # Convert PIL image to numpy array
         np_img = np.array(img)
 
@@ -218,7 +241,9 @@ def create_slideshow(images, story, filename, duration=10, fadein_duration=2, fa
     clip = ImageSequenceClip(clips, fps)
 
     # Load the background audio
-    audio = AudioFileClip('./resources/background_music.mp3')
+    directory_path = './resources/audio'
+    files = get_random_files(directory_path)
+    audio = AudioFileClip(os.path.join(directory_path, files[0]))
     audio = afx.audio_loop(audio, duration)
     audio = audio.set_duration(clip.duration)
     audio = audio.audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
@@ -238,29 +263,23 @@ def generate_video():
     if not bearer_token:
         return jsonify({"error": "Authorization token is missing"}), 401
 
-    # Generate a unique filename for the video
-    unique_id = str(uuid.uuid4())
-    filename = f"./output/videos/{unique_id}.mp4"
-
     # Get JSON data for prompt and story
     data = request.get_json()
     prompt = data.get('prompt', "")
-    story = data.get('story', "")
     num_slides = data.get('num_slides', 1)
     gen_images = data.get('gen_images', True)
 
     if not prompt:
         return jsonify({"error": "Prompt must be provided"}), 400
 
-    if not story: 
-        story = generate_story(bearer_token, prompt, num_slides)
-
-    # print('bearer_token ',bearer_token)
     print('prompt ',prompt)
-    print('story ',story)
+
+    # Generate a unique filename for the video
+    unique_id = str(uuid.uuid4())
+    filename = f"./output/videos/{unique_id}.mp4"
 
     # Generate video based on the bearer token, prompt, and story
-    generate_short_content(bearer_token, prompt, story, filename, num_slides, gen_images)
+    generate_short_content(bearer_token, prompt, filename, num_slides, gen_images)
 
     # Check if the video file has been created and exists
 
