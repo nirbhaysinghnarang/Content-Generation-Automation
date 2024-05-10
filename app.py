@@ -287,13 +287,14 @@ def generate_video():
     # Check if the video file has been created and exists
 
     # Generate URL for the created video
-    video_url = url_for('get_video', video_id=unique_id, _external=True)
+    # video_url = url_for('get_video', video_id=unique_id, _external=True)
+    video_url = f"http://{request.host}/videos/{unique_id}.mp4"
     return jsonify({"video_url": video_url})
 
 
-@app.route('/video/<video_id>')
+@app.route('/videos/<video_id>')
 def get_video(video_id):
-    video_path = f"./output/videos/{video_id}.mp4"
+    video_path = f"./output/videos/{video_id}"
     try:
         return send_file(video_path, as_attachment=True, download_name=video_path)
     except Exception as e:
