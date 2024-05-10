@@ -266,7 +266,7 @@ def generate_video():
     # Get JSON data for prompt and story
     data = request.get_json()
     prompt = data.get('prompt', "")
-    num_slides = data.get('num_slides', 3)
+    num_slides = data.get('num_slides', 1)
     gen_images = data.get('gen_images', False)
 
     if not prompt:
@@ -302,5 +302,5 @@ def home():
     return "Welcome to the Video Generator API!"
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 6000))  # Default to 5000 if no PORT env var
+    port = int(os.environ.get('PORT', 6000))  
     app.run(debug=True, host='0.0.0.0', port=port)
