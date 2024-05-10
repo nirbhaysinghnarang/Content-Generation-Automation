@@ -1,4 +1,5 @@
 from flask import Flask, request, send_file, jsonify, url_for
+from werkzeug.middleware.proxy_fix import ProxyFix
 import uuid
 import requests
 from PIL import Image, ImageFont, ImageDraw
@@ -15,7 +16,7 @@ system_prompt = 'You are a helpful assistant.'
 
 style_prompt = 'The characters should be drawn from the time of the Hindu epic the Mahabharata. Use a style reminiscent of traditional painting techniques to create an image that is suitable for illustrating Hindu religious or mythological narratives. The bottom 1/3 of the image should depict the ground, air or some other unimportant item.'
 
-app.config['PREFERRED_URL_SCHEME'] = 'https'
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 
 
 def dalle(bearer_token, prompt, style_prompt=style_prompt):
