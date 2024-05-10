@@ -291,7 +291,7 @@ def generate_video():
     video_url = f"https://{request.host}/videos/{unique_id}.mp4"
     return jsonify({"video_url": video_url})
 
-
+'''
 @app.route('/video/<video_id>')
 def get_video(video_id):
     video_path = f"./output/videos/{video_id}.mp4"
@@ -299,7 +299,7 @@ def get_video(video_id):
         return send_file(video_path, as_attachment=True, download_name=video_path)
     except Exception as e:
         return video_path
-
+'''
 
 @app.route('/')
 def home():
