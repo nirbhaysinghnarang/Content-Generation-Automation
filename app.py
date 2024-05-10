@@ -3,12 +3,13 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import uuid
 import requests
 from PIL import Image, ImageFont, ImageDraw
-from moviepy.editor import ImageSequenceClip, AudioFileClip, afx
+from moviepy.editor import ImageSequenceClip, AudioFileClip, afx, concatenate_videoclips
 import numpy as np
 import cv2
 import io
 import os
 import random
+from gc import collect
 
 app = Flask(__name__)
 
@@ -78,37 +79,21 @@ def generate_short_content(bearer_token, prompt, filename, num_slides, gen_image
 
 
 def generate_zoom_pan_frames(np_img, num_frames):
-    frames = []
     height, width = np_img.shape[:2]
-    
-    # Final zoom scale set more dramatically for noticeable effect
     zoom_scale = 2.0  # End with a 2x zoom
-
-    # Set end points for panning to create a noticeable move
-    start_x, start_y = 0, 0  # Start from top-left corner of the image
-    end_x, end_y = int(width * 0.3), int(height * 0.3)  # Pan to 30% of the width and height
+    start_x, start_y = 0, 0
+    end_x, end_y = int(width * 0.3), int(height * 0.3)
 
     for i in range(num_frames):
-        # Interpolate scale linearly from 1 to zoom_scale over the number of frames
         scale = 1 + (zoom_scale - 1) * (i / (num_frames - 1))
-
-        # Resize the image according to the current scale
         scaled_frame = cv2.resize(np_img, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
         scaled_height, scaled_width = scaled_frame.shape[:2]
-
-        # Calculate current top-left corner for cropping, linearly moving from start to end points
         current_x = int(start_x + (end_x - start_x) * (i / (num_frames - 1)))
         current_y = int(start_y + (end_y - start_y) * (i / (num_frames - 1)))
-
-        # Ensure the crop does not go out of bounds
         x1 = max(0, min(current_x, scaled_width - width))
         y1 = max(0, min(current_y, scaled_height - height))
         cropped_frame = scaled_frame[y1:y1 + height, x1:x1 + width]
-
-        # Append frame to list
-        frames.append(cropped_frame)
-
-    return frames
+        yield cropped_frame
 
 
 def generate_story(bearer_token, prompt):
@@ -220,42 +205,25 @@ def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0), bg_color=(2
 
 
 def create_slideshow(images, stories, filename, duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
-    # Prepare clips list
     clips = []
-    total_frames = len(images) * duration * fps  # Total frames for the whole video
-    frames_per_image = total_frames // len(images)  # Frames allocated to each image
-
     for img, story in zip(images, stories):
-        # Convert PIL image to numpy array
         np_img = np.array(img)
+        for frame in generate_zoom_pan_frames(np_img, int(duration * fps / len(images))):
+            processed_frame = put_text_on_image(frame, story)
+            clips.append(processed_frame)
+            del frame  # Free memory of each frame after processing
+        del np_img  # Free memory of the numpy image
+        collect()  # Force garbage collection
 
-        # Add zoom and pan effect
-        zoom_pan_frames = generate_zoom_pan_frames(np_img, frames_per_image)  # Generate zoom and pan frames
-        
-        # Add text onto the image using OpenCV
-        # np_img_with_text = put_text_on_image(np_img, story)
-        zoom_pan_frames_with_text = [put_text_on_image(frame, story) for frame in zoom_pan_frames]
-
-        # Append the modified image to the clips list
-        # clips.append(np_img_with_text)
-        clips.extend(zoom_pan_frames_with_text)
-
-    # Create a clip from image sequences
-    clip = ImageSequenceClip(clips, fps)
-
-    # Load the background audio
-    directory_path = './resources/audio'
-    files = get_random_files(directory_path)
-    audio = AudioFileClip(os.path.join(directory_path, files[0]))
-    audio = afx.audio_loop(audio, duration)
-    audio = audio.set_duration(clip.duration)
-    audio = audio.audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
-
-    # Set the audio of the video clip
-    clip = clip.set_audio(audio)
-
-    # Write the clip to a file
+    # Create video from frames
+    clip = ImageSequenceClip(clips, fps=fps)
+    audio_path = './resources/audio/sample_audio.mp3'  # Example path
+    audio = AudioFileClip(audio_path).audio_loop(duration).set_duration(clip.duration).audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
+    clip.set_audio(audio)
     clip.write_videofile(filename, fps=24, codec='libx264', audio_codec='aac')
+    audio.close()  # Ensure resources are cleared
+    del clips  # Ensure all frames are deleted
+    collect()  # Final garbage collection
 
 
 @app.route('/generate_video', methods=['POST'])
