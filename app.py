@@ -204,26 +204,36 @@ def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0), bg_color=(2
     return np.array(img_pil)
 
 
-def create_slideshow(images, stories, filename, duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
+def create_slideshow(images, stories, filename, slide_duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
     clips = []
     for img, story in zip(images, stories):
         np_img = np.array(img)
-        for frame in generate_zoom_pan_frames(np_img, int(duration * fps / len(images))):
+        for frame in generate_zoom_pan_frames(np_img, int(slide_duration * fps)):
             processed_frame = put_text_on_image(frame, story)
             clips.append(processed_frame)
-            del frame  # Free memory of each frame after processing
-        del np_img  # Free memory of the numpy image
-        collect()  # Force garbage collection
+            del frame  
+        del np_img  
+        collect() 
 
     # Create video from frames
     clip = ImageSequenceClip(clips, fps=fps)
-    audio_path = './resources/audio/sample_audio.mp3'  # Example path
-    audio = AudioFileClip(audio_path).audio_loop(duration).set_duration(clip.duration).audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
-    clip.set_audio(audio)
+
+    # Load the background audio
+    directory_path = './resources/audio'
+    files = get_random_files(directory_path)
+    audio = AudioFileClip(os.path.join(directory_path, files[0]))
+    audio = afx.audio_loop(audio, slide_duration * len(images))
+    audio = audio.set_duration(clip.duration)
+    audio = audio.audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
+    clip = clip.set_audio(audio)
+
+    # Write the video file
     clip.write_videofile(filename, fps=24, codec='libx264', audio_codec='aac')
-    audio.close()  # Ensure resources are cleared
-    del clips  # Ensure all frames are deleted
-    collect()  # Final garbage collection
+    
+    # Cleanup
+    audio.close()  
+    del clips  
+    collect()  
 
 
 @app.route('/generate_video', methods=['POST'])
