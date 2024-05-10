@@ -109,12 +109,12 @@ def generate_zoom_pan_frames(np_img, num_frames):
 
 
 def generate_story(bearer_token, prompt):
-    return chatgpt(bearer_token, prompt, 'You are the Hindu god Krishna. Please respond to the users question with wisdom and compassion with a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, separated by a new line, with no quotation marks or other surrounding text')
+    return chatgpt(bearer_token, prompt, 'You are the Hindu god Krishna. Please respond to the users question with wisdom and compassion with a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, separated by a new line, with no quotation marks or other surrounding text. Do not include any new lines in the English translation.')
 
 
 def get_random_files(directory_path):
     # List all files in the directory and filter out non-image files if necessary
-    files = [f for f in os.listdir(directory_path)]
+    files = [f for f in os.listdir(directory_path) if f.endswith(('.webp', '.mp3'))]
     
     # Shuffle the list of files to ensure random order
     random.seed()
@@ -266,8 +266,8 @@ def generate_video():
     # Get JSON data for prompt and story
     data = request.get_json()
     prompt = data.get('prompt', "")
-    num_slides = data.get('num_slides', 1)
-    gen_images = data.get('gen_images', True)
+    num_slides = data.get('num_slides', 3)
+    gen_images = data.get('gen_images', False)
 
     if not prompt:
         return jsonify({"error": "Prompt must be provided"}), 400
