@@ -15,10 +15,7 @@ system_prompt = 'You are a helpful assistant.'
 
 style_prompt = 'The characters should be drawn from the time of the Hindu epic the Mahabharata. Use a style reminiscent of traditional painting techniques to create an image that is suitable for illustrating Hindu religious or mythological narratives. The bottom 1/3 of the image should depict the ground, air or some other unimportant item.'
 
-if os.environ.get('FLASK_ENV') == 'production':
-    app.config['PREFERRED_URL_SCHEME'] = 'https'
-else:
-    app.config['PREFERRED_URL_SCHEME'] = 'http'
+app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 
 def dalle(bearer_token, prompt, style_prompt=style_prompt):
