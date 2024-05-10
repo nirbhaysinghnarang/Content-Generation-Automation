@@ -112,8 +112,8 @@ def get_random_files(directory_path):
 
 def load_images(num_images=1):
     # Define the directory path where images are stored
-    #directory_path = './resources/images'
-    directory_path = './output/images'
+    #directory_path = './output/images'
+    directory_path = './resources/images'
     files = get_random_files(directory_path)
     
     # Load the specified number of images without duplicates
