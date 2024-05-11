@@ -15,7 +15,7 @@ app = Flask(__name__)
 
 default_txt_prompt = 'You are the Hindu god Krishna. Please respond to the users prompt with wisdom and compassion using a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, separated by a new line, with no quotation marks or other surrounding text. Make sure the answer is a direct quotation from the Mahabharata; do not make anything up.'
 
-default_img_prompt = 'Based on the following prompt, create an image prompt suitable for an image generation tool like dall-e. The prompt should highlight the divine presence of Lord Krisna. Respond with the image prompt itself without any introductory or extraneous text. Prompt: '
+default_img_prompt = 'The image should highlight the divine presence of Lord Krisna.'
 
 default_style_prompt = 'Use a style reminiscent of traditional painting techniques to create an image that is suitable for illustrating Hindu religious or mythological narratives.'
 
@@ -106,7 +106,7 @@ def load_images(num_images=1):
 def generate_images(bearer_token, story, img_prompt, style_prompt, num_images=1):
     images = []
     for i in range(num_images):
-        prompt = chatgpt(bearer_token, img_prompt + ' ' + story)
+        prompt = chatgpt(bearer_token, f"Based on the following prompt, create an image prompt suitable for an image generation tool like dall-e. {img_prompt} Respond with the image prompt itself without any introductory or extraneous text. Prompt: {story}")
         print('img prompt ',prompt)
         img = dalle(bearer_token, prompt + ' ' + style_prompt)
         images.append(img)
