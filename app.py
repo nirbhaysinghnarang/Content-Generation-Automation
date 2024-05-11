@@ -41,7 +41,7 @@ def dalle(bearer_token, prompt):
             img = Image.open(io.BytesIO(img_bytes))
             return img
     else:
-        print(f"Failed to generate images: {response.text}")
+        app.logger.error(f"Failed to generate images: {response.text}")
 
 
 def chatgpt(bearer_token, prompt, system_prompt="You are a helpful assistant"):
@@ -63,7 +63,7 @@ def chatgpt(bearer_token, prompt, system_prompt="You are a helpful assistant"):
         data = response.json()
         return data['choices'][0]['message']['content'].strip()  # Extract and return the text from the response
     else:
-        print(f"Failed to generate text: {response.text}")
+        app.logger.error(f"Failed to generate text: {response.text}")
         return None
     
 
@@ -76,11 +76,6 @@ def get_random_files(directory_path):
     random.shuffle(files)
 
     return files
-
-
-def generate_story(bearer_token, prompt, txt_prompt):
-    return chatgpt(bearer_token, prompt, txt_prompt)
-
 
 def load_images(num_images=1):
     # Define the directory path where images are stored
@@ -103,12 +98,12 @@ def load_images(num_images=1):
     
 
 # Function to generate images using OpenAI's DALL-E API
-def generate_images(bearer_token, story, img_prompt, style_prompt, num_images=1):
+def generate_images(bearer_token, stories, img_prompt, style_prompt):
     images = []
-    for i in range(num_images):
-        prompt = chatgpt(bearer_token, f"Based on the following prompt, create an image prompt suitable for an image generation tool like dall-e. {img_prompt} Respond with the image prompt itself without any introductory or extraneous text. Prompt: {story}")
-        print('img prompt ',prompt)
-        img = dalle(bearer_token, prompt + ' ' + style_prompt)
+    for story in stories:
+        prompt = chatgpt(bearer_token, f"Based on the following text, create an image prompt suitable for an image generation tool like dall-e. {img_prompt} Respond with the image prompt itself without any introductory or extraneous text. {style_prompt} Text: {story}")
+        app.logger.info('img prompt: ' + prompt)
+        img = dalle(bearer_token, prompt)
         images.append(img)
         unique_id = str(uuid.uuid4())
         img.save(f"./output/images/{unique_id}.webp")
@@ -170,7 +165,7 @@ def put_text_on_image(img, text, font_size=32, text_color=(0, 0, 0, 200), bg_col
 
     # Check if the text height exceeds the image height
     if total_text_height > img_pil.height:
-        print("Warning: Text exceeds image height, consider resizing the image or reducing font size.")
+        app.logger.error("Warning: Text exceeds image height, consider resizing the image or reducing font size.")
 
     # Draw a single rectangle background for all lines of text
     bg_rect_top_left = (0, text_y_start - 5)
@@ -205,7 +200,7 @@ def generate_zoom_pan_frames(np_img, num_frames):
         yield cropped_frame
 
 
-def create_slideshow(images, stories, filename, add_music=True, slide_duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
+def create_slideshow(images, stories, audio, filename, slide_duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
     clips = []
     for img, story in zip(images, stories):
         np_img = np.array(img)
@@ -220,10 +215,7 @@ def create_slideshow(images, stories, filename, add_music=True, slide_duration=1
     clip = ImageSequenceClip(clips, fps=fps)
 
     # Load the background audio
-    if add_music:
-        directory_path = './resources/audio'
-        files = get_random_files(directory_path)
-        audio = AudioFileClip(os.path.join(directory_path, files[0]))
+    if audio:
         audio = afx.audio_loop(audio, slide_duration * len(images))
         audio = audio.set_duration(clip.duration)
         audio = audio.audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
@@ -238,55 +230,69 @@ def create_slideshow(images, stories, filename, add_music=True, slide_duration=1
     collect()  
 
 
-def generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_prompt, filename, num_slides, gen_images, add_music):
-    stories = []
-    for i in range(num_slides):
-        story = generate_story(bearer_token, prompt, txt_prompt)
-        print('story ',story)
-        stories.append(story)
+def generate_short_content(bearer_token, prompt, stories, txt_prompt, img_prompt, style_prompt, gen_images, add_music, num_slides, filename):
+    if not len(stories):
+        for i in range(num_slides):
+            story = chatgpt(bearer_token, prompt, txt_prompt)
+            app.logger.info('story: ' + story)
+            stories.append(story)
+    
     if gen_images:
-        images = generate_images(bearer_token, prompt, img_prompt, style_prompt, num_slides)
+        images = generate_images(bearer_token, stories, img_prompt, style_prompt)
     else:
-        images = load_images(num_slides)
-    create_slideshow(images, stories, filename, add_music)
+        images = load_images(len(stories))
+    
+    audio = None
+    if add_music:
+        directory_path = './resources/audio'
+        files = get_random_files(directory_path)
+        audio = AudioFileClip(os.path.join(directory_path, files[0]))
+    
+    create_slideshow(images, stories, audio, filename)
 
 
 @app.route('/generate_video', methods=['POST'])
 def generate_video():
-    # Get bearer token from headers
-    bearer_token = request.headers.get('Authorization')
+    try:
+        # Get bearer token from headers
+        bearer_token = request.headers.get('Authorization')
 
-    if not bearer_token:
-        return jsonify({"error": "Authorization token is missing"}), 401
+        if not bearer_token:
+            return jsonify({"error": "Authorization token is missing"}), 401
 
-    # Get JSON data for prompt and story
-    data = request.get_json()
-    prompt = data.get('prompt', "What is the meaning of life?")
-    num_slides = data.get('num_slides', 1)
-    gen_images = data.get('gen_images', False)
-    add_music = data.get('add_music', True)
-    txt_prompt = data.get('txt_prompt', default_txt_prompt)
-    img_prompt = data.get('img_prompt', default_img_prompt)
-    style_prompt = data.get('style_prompt', default_style_prompt)
+        # Get JSON data for prompt and story
+        data = request.get_json()
+        prompt = data.get('prompt', "")
+        stories = data.get('stories', [])
+        num_slides = data.get('num_slides', 1)
+        gen_images = data.get('gen_images', False)
+        add_music = data.get('add_music', True)
+        txt_prompt = data.get('txt_prompt', default_txt_prompt)
+        img_prompt = data.get('img_prompt', default_img_prompt)
+        style_prompt = data.get('style_prompt', default_style_prompt)
 
-    if not prompt:
-        return jsonify({"error": "Prompt must be provided"}), 400
+        if not prompt and not len(stories):
+            return jsonify({"error": "Prompt or stories must be provided"}), 400
 
-    print('prompt ',prompt)
+        # Generate a unique filename for the video
+        unique_id = str(uuid.uuid4())
+        filename = f"./output/videos/{unique_id}.mp4"
 
-    # Generate a unique filename for the video
-    unique_id = str(uuid.uuid4())
-    filename = f"./output/videos/{unique_id}.mp4"
+        # Generate video based on the bearer token, prompt and/or stories
+        generate_short_content(bearer_token, prompt, stories, txt_prompt, img_prompt, style_prompt, gen_images, add_music, num_slides, filename)
 
-    # Generate video based on the bearer token, prompt, and story
-    generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_prompt, filename, num_slides, gen_images, add_music)
+        # Check if the video file has been created and exists
 
-    # Check if the video file has been created and exists
-
-    # Generate URL for the created video
-    # video_url = url_for('get_video', video_id=unique_id, _external=True)
-    video_url = f"https://{request.host}/videos/{unique_id}.mp4"
-    return jsonify({"video_url": video_url})
+        # Generate URL for the created video
+        # video_url = url_for('get_video', video_id=unique_id, _external=True)
+        video_url = f"https://{request.host}/videos/{unique_id}.mp4"
+        return jsonify({"video_url": video_url})
+    
+    except Exception as e:
+        # Log the exception, could be more detailed depending on the logging setup
+        app.logger.error(f"Failed to generate video: {str(e)}")
+        # Return a generic error message and a 500 Internal Server Error status code
+        return jsonify({"error": "An error occurred while processing your request"}), 500
 
 '''
 @app.route('/video/<video_id>')
