@@ -13,20 +13,22 @@ from gc import collect
 
 app = Flask(__name__)
 
-system_prompt = 'You are a helpful assistant.'
+default_txt_prompt = 'You are the Hindu god Krishna. Please respond to the users prompt with wisdom and compassion using a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, separated by a new line, with no quotation marks or other surrounding text. Make sure the answer is a direct quotation from the Mahabharata; do not make anything up.'
 
-style_prompt = 'The characters should be drawn from the time of the Hindu epic the Mahabharata. Use a style reminiscent of traditional painting techniques to create an image that is suitable for illustrating Hindu religious or mythological narratives. The bottom 1/3 of the image should depict the ground, air or some other unimportant item.'
+default_img_prompt = 'Based on the following prompt, create an image prompt suitable for an image generation tool like dall-e. The prompt should highlight the divine presence of Lord Krisna. Respond with the image prompt itself without any introductory or extraneous text. Prompt: '
+
+default_style_prompt = 'Use a style reminiscent of traditional painting techniques to create an image that is suitable for illustrating Hindu religious or mythological narratives.'
 
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 
 
-def dalle(bearer_token, prompt, style_prompt=style_prompt):
+def dalle(bearer_token, prompt):
     headers = {
       'Authorization': bearer_token
     }
     payload = {
         "model": "dall-e-3",
-        "prompt": prompt + ' ' + style_prompt,
+        "prompt": prompt,
         "n": 1,
         "size": "1024x1024"
     }
@@ -42,7 +44,7 @@ def dalle(bearer_token, prompt, style_prompt=style_prompt):
         print(f"Failed to generate images: {response.text}")
 
 
-def chatgpt(bearer_token, prompt, system_prompt=system_prompt):
+def chatgpt(bearer_token, prompt, system_prompt="You are a helpful assistant"):
     headers = {
         'Authorization': bearer_token,
         "Content-Type": "application/json"
@@ -65,41 +67,6 @@ def chatgpt(bearer_token, prompt, system_prompt=system_prompt):
         return None
     
 
-def generate_short_content(bearer_token, prompt, filename, num_slides, gen_images):
-    stories = []
-    for i in range(num_slides):
-        story = generate_story(bearer_token, prompt)
-        print('story ',story)
-        stories.append(story)
-    if gen_images:
-        images = generate_images(bearer_token, prompt, num_slides)
-    else:
-        images = load_images(num_slides)
-    create_slideshow(images, stories, filename)
-
-
-def generate_zoom_pan_frames(np_img, num_frames):
-    height, width = np_img.shape[:2]
-    zoom_scale = 2.0  # End with a 2x zoom
-    start_x, start_y = 0, 0
-    end_x, end_y = int(width * 0.3), int(height * 0.3)
-
-    for i in range(num_frames):
-        scale = 1 + (zoom_scale - 1) * (i / (num_frames - 1))
-        scaled_frame = cv2.resize(np_img, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
-        scaled_height, scaled_width = scaled_frame.shape[:2]
-        current_x = int(start_x + (end_x - start_x) * (i / (num_frames - 1)))
-        current_y = int(start_y + (end_y - start_y) * (i / (num_frames - 1)))
-        x1 = max(0, min(current_x, scaled_width - width))
-        y1 = max(0, min(current_y, scaled_height - height))
-        cropped_frame = scaled_frame[y1:y1 + height, x1:x1 + width]
-        yield cropped_frame
-
-
-def generate_story(bearer_token, prompt):
-    return chatgpt(bearer_token, prompt, 'You are the Hindu god Krishna. Please respond to the users prompt with wisdom and compassion using a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, separated by a new line, with no quotation marks or other surrounding text. Do not include any new lines in the English translation. Make sure the answer is a direct quotation from the Mahabharata; do not make anything up.')
-
-
 def get_random_files(directory_path):
     # List all files in the directory and filter out non-image files if necessary
     files = [f for f in os.listdir(directory_path) if f.endswith(('.webp', '.mp3'))]
@@ -109,6 +76,11 @@ def get_random_files(directory_path):
     random.shuffle(files)
 
     return files
+
+
+def generate_story(bearer_token, prompt, txt_prompt):
+    return chatgpt(bearer_token, prompt, txt_prompt)
+
 
 def load_images(num_images=1):
     # Define the directory path where images are stored
@@ -131,12 +103,12 @@ def load_images(num_images=1):
     
 
 # Function to generate images using OpenAI's DALL-E API
-def generate_images(bearer_token, story, num_images=1):
+def generate_images(bearer_token, story, img_prompt, style_prompt, num_images=1):
     images = []
     for i in range(num_images):
-        prompt = chatgpt(bearer_token, f"Based on the following prompt, create an image prompt suitable for an image generation tool like dall-e. The prompt should highlight the divine presence of Lord Krisna. Respond with the image prompt itself without any introductory or extraneous text. Prompt: {story}", "You are a helpful assistant that converts the text prompt into an image prompt suitable for an image generation tool like dall-e")
+        prompt = chatgpt(bearer_token, img_prompt + ' ' + story)
         print('img prompt ',prompt)
-        img = dalle(bearer_token, prompt)
+        img = dalle(bearer_token, prompt + ' ' + style_prompt)
         images.append(img)
         unique_id = str(uuid.uuid4())
         img.save(f"./output/images/{unique_id}.webp")
@@ -168,14 +140,14 @@ def wrap_text(text, font, max_width):
     return lines
 
 
-def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0, 200), bg_color=(255, 255, 255, 128)):
+def put_text_on_image(img, text, font_size=32, text_color=(0, 0, 0, 200), bg_color=(255, 255, 255, 128)):
     # Convert numpy array to PIL Image
     img_pil = Image.fromarray(img)
     draw = ImageDraw.Draw(img_pil, 'RGBA')
 
     # Use a Unicode compatible font
     font_path = "./resources/NotoSansDevanagari-Bold.ttf"
-    font = ImageFont.truetype(font_path, int(16 * font_scale))
+    font = ImageFont.truetype(font_path, int(16))
 
     # Watermark Text: "mahabot.in" in the top right
     watermark_text = "mahabot.in"
@@ -185,7 +157,7 @@ def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0, 200), bg_col
     draw.text((wm_text_x, wm_text_y), watermark_text, font=font, fill=(255, 255, 255))
 
     # Reset font size
-    font = ImageFont.truetype(font_path, int(32 * font_scale))
+    font = ImageFont.truetype(font_path, int(font_size))
     
     # Text wrapping
     wrapped_text = wrap_text(text, font, img_pil.width - 20)
@@ -213,6 +185,24 @@ def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0, 200), bg_col
 
     # Convert back to numpy array
     return np.array(img_pil)
+
+
+def generate_zoom_pan_frames(np_img, num_frames):
+    height, width = np_img.shape[:2]
+    zoom_scale = 2.0  # End with a 2x zoom
+    start_x, start_y = 0, 0
+    end_x, end_y = int(width * 0.3), int(height * 0.3)
+
+    for i in range(num_frames):
+        scale = 1 + (zoom_scale - 1) * (i / (num_frames - 1))
+        scaled_frame = cv2.resize(np_img, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+        scaled_height, scaled_width = scaled_frame.shape[:2]
+        current_x = int(start_x + (end_x - start_x) * (i / (num_frames - 1)))
+        current_y = int(start_y + (end_y - start_y) * (i / (num_frames - 1)))
+        x1 = max(0, min(current_x, scaled_width - width))
+        y1 = max(0, min(current_y, scaled_height - height))
+        cropped_frame = scaled_frame[y1:y1 + height, x1:x1 + width]
+        yield cropped_frame
 
 
 def create_slideshow(images, stories, filename, slide_duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
@@ -247,6 +237,19 @@ def create_slideshow(images, stories, filename, slide_duration=10, fadein_durati
     collect()  
 
 
+def generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_prompt, filename, num_slides, gen_images):
+    stories = []
+    for i in range(num_slides):
+        story = generate_story(bearer_token, prompt, txt_prompt)
+        print('story ',story)
+        stories.append(story)
+    if gen_images:
+        images = generate_images(bearer_token, prompt, img_prompt, style_prompt, num_slides)
+    else:
+        images = load_images(num_slides)
+    create_slideshow(images, stories, filename)
+
+
 @app.route('/generate_video', methods=['POST'])
 def generate_video():
     # Get bearer token from headers
@@ -257,9 +260,12 @@ def generate_video():
 
     # Get JSON data for prompt and story
     data = request.get_json()
-    prompt = data.get('prompt', "")
+    prompt = data.get('prompt', "What is the meaning of life?")
     num_slides = data.get('num_slides', 1)
     gen_images = data.get('gen_images', False)
+    txt_prompt = data.get('txt_prompt', default_txt_prompt)
+    img_prompt = data.get('img_prompt', default_img_prompt)
+    style_prompt = data.get('style_prompt', default_style_prompt)
 
     if not prompt:
         return jsonify({"error": "Prompt must be provided"}), 400
@@ -271,7 +277,7 @@ def generate_video():
     filename = f"./output/videos/{unique_id}.mp4"
 
     # Generate video based on the bearer token, prompt, and story
-    generate_short_content(bearer_token, prompt, filename, num_slides, gen_images)
+    generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_prompt, filename, num_slides, gen_images)
 
     # Check if the video file has been created and exists
 
