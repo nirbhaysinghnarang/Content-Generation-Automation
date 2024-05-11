@@ -168,15 +168,25 @@ def wrap_text(text, font, max_width):
     return lines
 
 
-def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0), bg_color=(255, 255, 255, 0)):
+def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0, 200), bg_color=(255, 255, 255, 128)):
     # Convert numpy array to PIL Image
     img_pil = Image.fromarray(img)
-    draw = ImageDraw.Draw(img_pil)
+    draw = ImageDraw.Draw(img_pil, 'RGBA')
 
     # Use a Unicode compatible font
     font_path = "./resources/NotoSansDevanagari-Bold.ttf"
-    font = ImageFont.truetype(font_path, int(32 * font_scale))
+    font = ImageFont.truetype(font_path, int(16 * font_scale))
 
+    # Watermark Text: "mahabot.in" in the top right
+    watermark_text = "mahabot.in"
+    wm_text_width, wm_text_height = font.getsize(watermark_text)
+    wm_text_x = img_pil.width - wm_text_width - 10
+    wm_text_y = 10
+    draw.text((wm_text_x, wm_text_y), watermark_text, font=font, fill=(255, 255, 255))
+
+    # Reset font size
+    font = ImageFont.truetype(font_path, int(32 * font_scale))
+    
     # Text wrapping
     wrapped_text = wrap_text(text, font, img_pil.width - 20)
     # Calculate line height based on the tallest character 'Mg' and add padding
@@ -190,12 +200,13 @@ def put_text_on_image(img, text, font_scale=1, text_color=(0, 0, 0), bg_color=(2
     if total_text_height > img_pil.height:
         print("Warning: Text exceeds image height, consider resizing the image or reducing font size.")
 
-    # Draw a rectangle background and text for each line
-    for i, line in enumerate(wrapped_text):
-        bg_rect_top_left = (0, text_y_start + i * line_height - 5)
-        bg_rect_bottom_right = (img_pil.width, text_y_start + (i + 1) * line_height + 5)
-        draw.rectangle([bg_rect_top_left, bg_rect_bottom_right], fill=bg_color)
+    # Draw a single rectangle background for all lines of text
+    bg_rect_top_left = (0, text_y_start - 5)
+    bg_rect_bottom_right = (img_pil.width, text_y_start + total_text_height + 5)
+    draw.rectangle([bg_rect_top_left, bg_rect_bottom_right], fill=bg_color)
 
+    # Draw text for each line
+    for i, line in enumerate(wrapped_text):
         text_width, _ = draw.textsize(line, font=font)
         text_x = (img_pil.width - text_width) / 2  # Center the text horizontally
         draw.text((text_x, text_y_start + i * line_height), line, font=font, fill=text_color)
@@ -285,4 +296,4 @@ def home():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 6000))  
-    app.run(host='0.0.0.0', port=port)
+    app.run(debug=True, host='0.0.0.0', port=port)
