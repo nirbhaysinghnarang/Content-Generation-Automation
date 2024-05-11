@@ -249,6 +249,7 @@ def generate_short_content(bearer_token, prompt, stories, txt_prompt, img_prompt
         audio = AudioFileClip(os.path.join(directory_path, files[0]))
     
     create_slideshow(images, stories, audio, filename)
+    return stories
 
 
 @app.route('/generate_video', methods=['POST'])
@@ -279,14 +280,14 @@ def generate_video():
         filename = f"./output/videos/{unique_id}.mp4"
 
         # Generate video based on the bearer token, prompt and/or stories
-        generate_short_content(bearer_token, prompt, stories, txt_prompt, img_prompt, style_prompt, gen_images, add_music, num_slides, filename)
+        stories = generate_short_content(bearer_token, prompt, stories, txt_prompt, img_prompt, style_prompt, gen_images, add_music, num_slides, filename)
 
         # Check if the video file has been created and exists
 
         # Generate URL for the created video
         # video_url = url_for('get_video', video_id=unique_id, _external=True)
         video_url = f"https://{request.host}/videos/{unique_id}.mp4"
-        return jsonify({"video_url": video_url})
+        return jsonify({"video_url": video_url, "stories": stories})
     
     except Exception as e:
         # Log the exception, could be more detailed depending on the logging setup
