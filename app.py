@@ -205,7 +205,7 @@ def generate_zoom_pan_frames(np_img, num_frames):
         yield cropped_frame
 
 
-def create_slideshow(images, stories, filename, slide_duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
+def create_slideshow(images, stories, filename, add_music=True, slide_duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
     clips = []
     for img, story in zip(images, stories):
         np_img = np.array(img)
@@ -220,24 +220,25 @@ def create_slideshow(images, stories, filename, slide_duration=10, fadein_durati
     clip = ImageSequenceClip(clips, fps=fps)
 
     # Load the background audio
-    directory_path = './resources/audio'
-    files = get_random_files(directory_path)
-    audio = AudioFileClip(os.path.join(directory_path, files[0]))
-    audio = afx.audio_loop(audio, slide_duration * len(images))
-    audio = audio.set_duration(clip.duration)
-    audio = audio.audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
-    clip = clip.set_audio(audio)
+    if add_music:
+        directory_path = './resources/audio'
+        files = get_random_files(directory_path)
+        audio = AudioFileClip(os.path.join(directory_path, files[0]))
+        audio = afx.audio_loop(audio, slide_duration * len(images))
+        audio = audio.set_duration(clip.duration)
+        audio = audio.audio_fadein(fadein_duration).audio_fadeout(fadeout_duration)
+        clip = clip.set_audio(audio)
 
     # Write the video file
     clip.write_videofile(filename, fps=24, codec='libx264', audio_codec='aac')
     
     # Cleanup
-    audio.close()  
+    # audio.close()  
     del clips  
     collect()  
 
 
-def generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_prompt, filename, num_slides, gen_images):
+def generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_prompt, filename, num_slides, gen_images, add_music):
     stories = []
     for i in range(num_slides):
         story = generate_story(bearer_token, prompt, txt_prompt)
@@ -247,7 +248,7 @@ def generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_p
         images = generate_images(bearer_token, prompt, img_prompt, style_prompt, num_slides)
     else:
         images = load_images(num_slides)
-    create_slideshow(images, stories, filename)
+    create_slideshow(images, stories, filename, add_music)
 
 
 @app.route('/generate_video', methods=['POST'])
@@ -263,6 +264,7 @@ def generate_video():
     prompt = data.get('prompt', "What is the meaning of life?")
     num_slides = data.get('num_slides', 1)
     gen_images = data.get('gen_images', False)
+    add_music = data.get('add_music', True)
     txt_prompt = data.get('txt_prompt', default_txt_prompt)
     img_prompt = data.get('img_prompt', default_img_prompt)
     style_prompt = data.get('style_prompt', default_style_prompt)
@@ -277,7 +279,7 @@ def generate_video():
     filename = f"./output/videos/{unique_id}.mp4"
 
     # Generate video based on the bearer token, prompt, and story
-    generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_prompt, filename, num_slides, gen_images)
+    generate_short_content(bearer_token, prompt, txt_prompt, img_prompt, style_prompt, filename, num_slides, gen_images, add_music)
 
     # Check if the video file has been created and exists
 
