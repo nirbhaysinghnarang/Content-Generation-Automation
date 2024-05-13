@@ -198,6 +198,13 @@ def put_text_on_image(img, text, web_url="", phone_number="", font_size=32, text
     return np.array(img_pil)
 
 
+def ease_in_out(x):
+    if x < 0.5:
+        return 2 * x * x
+    else:
+        return -1 + (4 - 2 * x) * x
+
+
 def generate_zoom_pan_frames(np_img, num_frames):
     height, width = np_img.shape[:2]
     zoom_scale = 2.0  # End with a 2x zoom
@@ -205,13 +212,18 @@ def generate_zoom_pan_frames(np_img, num_frames):
     end_x, end_y = int(width * 0.3), int(height * 0.3)
 
     for i in range(num_frames):
-        scale = 1 + (zoom_scale - 1) * (i / (num_frames - 1))
+        t = i / (num_frames - 1)  # Normalized time from 0 to 1
+        eased_t = ease_in_out(t)  # Apply easing function
+
+        scale = 1 + (zoom_scale - 1) * eased_t
         scaled_frame = cv2.resize(np_img, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
         scaled_height, scaled_width = scaled_frame.shape[:2]
-        current_x = int(start_x + (end_x - start_x) * (i / (num_frames - 1)))
-        current_y = int(start_y + (end_y - start_y) * (i / (num_frames - 1)))
+
+        current_x = int(start_x + (end_x - start_x) * eased_t)
+        current_y = int(start_y + (end_y - start_y) * eased_t)
         x1 = max(0, min(current_x, scaled_width - width))
         y1 = max(0, min(current_y, scaled_height - height))
+
         cropped_frame = scaled_frame[y1:y1 + height, x1:x1 + width]
         yield cropped_frame
 
