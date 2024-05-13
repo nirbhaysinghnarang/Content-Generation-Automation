@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, jsonify, url_for
+from flask import Flask, request, jsonify, send_file, url_for
 from werkzeug.middleware.proxy_fix import ProxyFix
 import uuid
 import requests
@@ -8,16 +8,11 @@ import numpy as np
 import cv2
 import io
 import os
+import json
 import random
 from gc import collect
 
 app = Flask(__name__)
-
-default_txt_prompt = 'You are the Hindu god Krishna. Please respond to the users prompt with wisdom and compassion using a direct quotation from the Mahabharata in Sanskrit of not more than 200 Devanigiri characters, along with the English translation, separated by a new line, with no quotation marks or other surrounding text. Make sure the answer is a direct quotation from the Mahabharata; do not make anything up.'
-
-default_img_prompt = 'The image should highlight the divine presence of Lord Krisna.'
-
-default_style_prompt = 'Use a style reminiscent of traditional painting techniques to create an image that is suitable for illustrating Hindu religious or mythological narratives.'
 
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 
@@ -110,6 +105,21 @@ def generate_images(bearer_token, stories, img_prompt, style_prompt):
 
     return images
 
+# Function to generate stories using chatGPT
+def generate_stories(bearer_token, prompt, system_prompt, num_slides, num_chars):
+    '''
+    stories = []
+    for i in range(num_slides):
+        story = chatgpt(bearer_token, prompt, system_prompt)
+        app.logger.info('story: ' + story)
+        stories.append(story)
+    '''
+    chatgpt_prompt = f"{prompt}. Generate {num_slides} responses, each of not more than ${num_chars} characters each. Respond with a JSON array of simple string literals, surrounded by square brackets, suitable to be parsed into JSON, with no backticks, quotation marks or other surrounding text."
+    stories = chatgpt(bearer_token, chatgpt_prompt, system_prompt)
+    app.logger.info('stories: ' + stories)
+    stories = json.loads(stories)
+    return stories
+
 
 def wrap_text(text, font, max_width):
     lines = []
@@ -135,7 +145,7 @@ def wrap_text(text, font, max_width):
     return lines
 
 
-def put_text_on_image(img, text, font_size=32, text_color=(0, 0, 0, 200), bg_color=(255, 255, 255, 128)):
+def put_text_on_image(img, text, web_url="", phone_number="", font_size=32, text_color=(0, 0, 0, 200), bg_color=(255, 255, 255, 128)):
     # Convert numpy array to PIL Image
     img_pil = Image.fromarray(img)
     draw = ImageDraw.Draw(img_pil, 'RGBA')
@@ -144,10 +154,16 @@ def put_text_on_image(img, text, font_size=32, text_color=(0, 0, 0, 200), bg_col
     font_path = "./resources/NotoSansDevanagari-Bold.ttf"
     font = ImageFont.truetype(font_path, int(16))
 
-    # Watermark Text: "mahabot.in" in the top right
-    watermark_text = "mahabot.in"
+    # top right
+    watermark_text = phone_number
     wm_text_width, wm_text_height = font.getsize(watermark_text)
     wm_text_x = img_pil.width - wm_text_width - 10
+    wm_text_y = 10
+    draw.text((wm_text_x, wm_text_y), watermark_text, font=font, fill=(255, 255, 255))
+
+    # top left
+    watermark_text = web_url
+    wm_text_x = 10
     wm_text_y = 10
     draw.text((wm_text_x, wm_text_y), watermark_text, font=font, fill=(255, 255, 255))
 
@@ -200,16 +216,20 @@ def generate_zoom_pan_frames(np_img, num_frames):
         yield cropped_frame
 
 
-def create_slideshow(images, stories, audio, filename, slide_duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
+def create_slideshow(images, stories, audio, filename, web_url, phone_number, zoom_pan=True, slide_duration=10, fadein_duration=2, fadeout_duration=2, fps=24):
     clips = []
     for img, story in zip(images, stories):
         np_img = np.array(img)
-        for frame in generate_zoom_pan_frames(np_img, int(slide_duration * fps)):
-            processed_frame = put_text_on_image(frame, story)
-            clips.append(processed_frame)
-            del frame  
+        if (zoom_pan):
+            for frame in generate_zoom_pan_frames(np_img, int(slide_duration * fps)):
+                processed_frame = put_text_on_image(frame, story, web_url, phone_number)
+                clips.append(processed_frame)
+                del frame  
+        else:
+            clips.append(put_text_on_image(np_img, story))
+            fps = 1/slide_duration
         del np_img  
-        collect() 
+        collect()
 
     # Create video from frames
     clip = ImageSequenceClip(clips, fps=fps)
@@ -230,12 +250,10 @@ def create_slideshow(images, stories, audio, filename, slide_duration=10, fadein
     collect()  
 
 
-def generate_short_content(bearer_token, prompt, stories, txt_prompt, img_prompt, style_prompt, gen_images, add_music, num_slides, filename):
+def generate_short_content(bearer_token, prompt, stories, system_prompt, img_prompt, style_prompt, web_url, phone_number, gen_images, zoom_pan, add_music, num_slides, num_chars, slide_duration, filename):
+    
     if not len(stories):
-        for i in range(num_slides):
-            story = chatgpt(bearer_token, prompt, txt_prompt)
-            app.logger.info('story: ' + story)
-            stories.append(story)
+        stories = generate_stories(bearer_token, prompt, system_prompt, num_slides, num_chars)
     
     if gen_images:
         images = generate_images(bearer_token, stories, img_prompt, style_prompt)
@@ -248,7 +266,7 @@ def generate_short_content(bearer_token, prompt, stories, txt_prompt, img_prompt
         files = get_random_files(directory_path)
         audio = AudioFileClip(os.path.join(directory_path, files[0]))
     
-    create_slideshow(images, stories, audio, filename)
+    create_slideshow(images, stories, audio, filename, web_url, phone_number, zoom_pan, slide_duration)
     return stories
 
 
@@ -267,10 +285,15 @@ def generate_video():
         stories = data.get('stories', [])
         num_slides = data.get('num_slides', 1)
         gen_images = data.get('gen_images', False)
+        zoom_pan = data.get('zoom_pan', True)
+        num_chars = data.get('num_chars', 300)
+        slide_duration = data.get('slide_duration', 10)
         add_music = data.get('add_music', True)
-        txt_prompt = data.get('txt_prompt', default_txt_prompt)
-        img_prompt = data.get('img_prompt', default_img_prompt)
-        style_prompt = data.get('style_prompt', default_style_prompt)
+        system_prompt = data.get('system_prompt', "You are a helpful assistant.")
+        img_prompt = data.get('img_prompt', "")
+        style_prompt = data.get('style_prompt', "")
+        web_url = data.get('web_url', "mahabot.in")
+        phone_number = data.get('phone_number', "+919944044840")
 
         if not prompt and not len(stories):
             return jsonify({"error": "Prompt or stories must be provided"}), 400
@@ -280,7 +303,7 @@ def generate_video():
         filename = f"./output/videos/{unique_id}.mp4"
 
         # Generate video based on the bearer token, prompt and/or stories
-        stories = generate_short_content(bearer_token, prompt, stories, txt_prompt, img_prompt, style_prompt, gen_images, add_music, num_slides, filename)
+        stories = generate_short_content(bearer_token, prompt, stories, system_prompt, img_prompt, style_prompt, web_url, phone_number, gen_images, zoom_pan, add_music, num_slides, num_chars, slide_duration, filename)
 
         # Check if the video file has been created and exists
 
